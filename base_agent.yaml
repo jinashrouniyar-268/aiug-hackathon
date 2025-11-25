@@ -1,0 +1,80 @@
+version: 0.1
+
+inputs:
+  query: str
+
+outputs:
+  response: str
+
+nodes:
+  create_message_history:
+    type: CreateMessageHistoryStep
+    input_mapping:
+      query: __inputs__#query
+
+  generation:
+    type: DynamicAgentStep
+    ui_stream_types:
+      retrievals: true
+      generation: true
+    config:
+      tools_config:
+        - name: datastore_search
+          description: |
+            Retrieve relevant document chunks from the linked datastore(s).
+            Use this tool to search through uploaded documents and knowledge base.
+            Always use this first when the user asks about information that might be in the documents.
+          step_config:
+            type: SearchUnstructuredDataStep
+            config:
+              top_k: 10
+
+        - name: web_search
+          description: |
+            Search the web for current information.
+            Use this tool when you need up-to-date information that might not be in the datastore.
+            Use this after checking the datastore if the information is not found.
+          step_config:
+            type: WebSearchStep
+
+      agent_config:
+        agent_loop:
+          num_turns: 10
+          parallel_tool_calls: true
+          model_name_or_path: "vertex_ai/claude-sonnet-4-5@20250929"
+          response_model_name_or_path: "vertex_ai/claude-sonnet-4-5@20250929"
+
+          identity_guidelines_prompt: |
+            You are a retrieval-augmented assistant created by Contextual AI. 
+            Your purpose is to provide factual, grounded answers by retrieving information via tools 
+            and then synthesizing a response based only on what you retrieved.
+
+          tool_catalog_prompt: |
+            You have access to 2 tools:
+            - datastore_search: Search through uploaded documents and knowledge base
+            - web_search: Search the web for current information
+
+            Use datastore_search first for information that might be in uploaded documents.
+            Use web_search for current information not available in the datastore.
+
+          tool_use_guidelines_prompt: |
+            - Plan briefly → execute: outline a minimal search plan, then retrieve with as few high-quality calls as necessary.
+            - Breadth, then depth: scan broadly to locate sources, then drill into specific details.
+            - Efficiency: avoid redundant calls; prefer fewer, higher-quality retrievals.
+            - Always check datastore first before using web search.
+
+          response_formatting_prompt: |
+            - Write a concise, well-structured answer in Markdown.
+            - Be explicit when data is missing: "No information found in retrieved sources."
+            - If any tools were used, add a footer: "Tools used: <tool_1>, <tool_2>, ..."
+            - Cite sources when using retrieved information.
+
+    input_mapping:
+      message_history: create_message_history#message_history
+
+  __outputs__:
+    type: output
+    input_mapping:
+      response: generation#response
+
+ui_output: response

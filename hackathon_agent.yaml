@@ -1,0 +1,463 @@
+version: 0.1
+inputs:
+  query: str
+
+outputs:
+  response: str
+
+nodes:
+  create_message_history:
+    type: CreateMessageHistoryStep
+    input_mapping:
+      query: __inputs__#query
+
+  generation:
+    type: DynamicAgentStep
+    ui_stream_types:
+      retrievals: true
+      generation: true
+    config:
+      tools_config:
+        - name: unstructured_data_agent
+          description: |
+            Specialized agent for retrieving information from unstructured datastores (documents, PDFs, text files).
+            Use this tool for document search, text retrieval, PDF queries, and general knowledge queries.
+          graph_config:
+            version: 0.1
+            inputs:
+              query: str
+            outputs:
+              response: str
+            nodes:
+              create_message_history:
+                type: CreateMessageHistoryStep
+                input_mapping:
+                  query: __inputs__#query
+
+              unstructured_sub_agent:
+                type: DynamicAgentStep
+                ui_stream_types:
+                  retrievals: true
+                  generation: true
+                config:
+                  tools_config:
+                    - name: datastore_search
+                      description: |
+                        Retrieve relevant document chunks from the linked datastore(s).
+                      step_config:
+                        type: SearchUnstructuredDataStep
+
+                    - name: search_chunk_metadata
+                      description: |
+                        Search for passages across user-uploaded documents in the datastore by the aliases, tags, or custom identifiers of those passages.
+                        For example, you can pass in "Section 3.2(a)" as the query to this tool as opposed to the user's original query if you know the response is in section 3.2(a) of a document.
+                        Use this when you know specific section references, tags, or aliases that identify the content.
+                        Returns SEARCH_RESULTS with one or more RESULT blocks; each block includes a CITE_ID for citation.
+                      graph_config:
+                        version: 0.1
+                        inputs:
+                          query: str
+                        outputs:
+                          retrievals: Retrievals
+                        nodes:
+                          search_metadata:
+                            type: SearchChunkMetadataStep
+                            config:
+                              metadata_key: "contextual_internal_aliases"
+                              top_k: 2
+                              lexical_alpha: 0.5
+                              semantic_alpha: 0.5
+                              knn_candidates_factor: 5
+                              enable_explain_api: false
+                              semantic_embedding_model: "Qwen/Qwen3-Embedding-8B"
+                              semantic_embedding_dimensions: 128
+                            input_mapping:
+                              query: __inputs__#query
+
+                          process_metadata:
+                            type: ProcessMetadataStep
+                            input_mapping:
+                              retrievals: search_metadata#retrievals
+
+                          entitle_retrievals:
+                            type: EntitleRetrievalsStep
+                            input_mapping:
+                              retrievals: process_metadata#retrievals
+
+                          __outputs__:
+                            type: output
+                            input_mapping:
+                              retrievals: entitle_retrievals#retrievals
+
+                  agent_config:
+                    agent_loop:
+                      num_turns: 10
+                      model_name_or_path: "vertex_ai/claude-sonnet-4-5@20250929"
+                      response_model_name_or_path: "vertex_ai/claude-sonnet-4-5@20250929"
+                      identity_guidelines_prompt: |
+                        You are a retrieval-augmented assistant created by Contextual AI. Your purpose is to provide factual, grounded answers by retrieving information via tools and then synthesizing a response based only on what you retrieved.
+                      tool_catalog_prompt: |
+                        - `datastore_search` — Search across user-uploaded documents in the datastore. Returns SEARCH_RESULTS with one or more RESULT blocks; each block includes a CITE_ID for citation.
+                        - `search_chunk_metadata` — Search for passages across user-uploaded documents in the datastore using the aliases, tags, or custom identifiers of those passages. For example, you can pass in "Section 3.2(a)" as the query to this tool as opposed to the user's original query if you know the response is in section 3.2(a) of a document. Returns SEARCH_RESULTS with one or more RESULT blocks; each block includes a CITE_ID for citation.
+                      tool_use_guidelines_prompt: |
+                        - Plan briefly → execute: outline a minimal search plan (subjects, facets), then retrieve with as few high-quality calls as necessary.
+                        - Breadth, then depth: scan for diverse sources that you need to answer the question with broader search queries, then drill down with specific searches.
+                        - Efficiency: avoid redundant searches; prefer high-quality retrievals.
+                        - Use datastore_search for general content queries
+                        - Use search_chunk_metadata when you know specific section references, tags, or aliases
+                      response_formatting_prompt: |
+                        ## Output
+                        - Write a concise, well-structured answer in **Markdown** (use short headings, bullets, and brief paragraphs).
+                        - If a needed fact is not present in the latest **SEARCH_RESULTS**, write exactly: *No information found in retrieved sources.*
+                        ## ‼ CITATION RULES (MUST FOLLOW EXACTLY)
+                        - Cite **every factual sentence** with one or more citations placed **immediately before the sentence's final punctuation**.
+                        - Citation token is **exactly** `[number]()` where `number` is a **CITE_ID** from the current **SEARCH_RESULTS**.
+                          - Regex each citation must match: `\[\d+\]\(\)`
+                          - Multiple sources: space-separated tokens, e.g. `[1]() [5]() [11]()`
+                        - **Valid range:** You may only use `CITE_ID` values **present** in the current **SEARCH_RESULTS** (do not invent or reuse IDs from prior calls).
+                        - **Forbidden formats:** ranges (`[1–3]()`), comma lists (`[1, 2]()`), missing parentheses (`[1]`), superscripts, URLs, footnotes, or any other variant.
+                        - Do **not** place citations in headings, code blocks, figure captions, or inside quotations; instead, cite the sentence that contains or introduces the factual claim.
+                        - Verbatim quotes (≥5 words) must be in quotes with a citation after the sentence.
+                        ### Quick examples
+                        **Good**
+                        - Kafka was a Prague-born writer active in the early 20th century. [3]()
+                        - Major works include *The Trial* and *The Metamorphosis*. [3]() [7]()
+                        **Bad**
+                        - Kafka was a writer (Wikipedia). [1, 2]()        ← commas not allowed
+                        - Kafka was a writer. [1]                         ← missing ()
+                        - Kafka was a writer. [9]()                       ← 9 not in current SEARCH_RESULTS
+                        - Kafka was a writer. (1)                         ← wrong token format
+                        - ## Kafka [1]()                                  ← no citations in headings
+                        ## Tools Footnote (required when any tools are used)
+                        - After your answer, add a final section that summarizes each tool call **in chronological order**, including the **arguments** actually used.
+                        - Format (one line per call): `- tool_name(arg1=value1, arg2=value2, ...)`
+                        - Keep arguments concise; truncate long strings to 120 chars with `…`; redact secrets/tokens; omit large payload fields.
+                        - Do **not** list internal/no-op helpers.
+                        ### Example footnote
+                        ---
+                        **Tools used**
+                        - datastore_search(query="kafka biography", top_k=5, filters={"source":"pdf"})
+                        - datastore_search(query="metamorphosis publication date", top_k=3)
+                        ## Preflight Self-Check (must pass before submitting)
+                        1) Every factual sentence has ≥1 `[number]()` citation.
+                        2) All citation numbers correspond to **CITE_IDs** in the current **SEARCH_RESULTS**.
+                        3) All citations match `\[\d+\]\(\)`; no commas/ranges/missing parentheses.
+                        4) No claims contradict retrieved content; missing facts use the exact missing-info sentence.
+
+                input_mapping:
+                  query: __inputs__#query
+                  message_history: create_message_history#message_history
+
+              __outputs__:
+                type: output
+                input_mapping:
+                  response: unstructured_sub_agent#response
+
+        - name: structured_data_agent
+          description: |
+            Specialized agent for querying structured datastores (tables, databases, CSV files, spreadsheets).
+            Use this tool for database queries, table information, SQL-related questions, CSV/spreadsheet analysis, and statistical questions about data.
+          graph_config:
+            version: 0.1
+            inputs:
+              query: str
+            outputs:
+              response: str
+            nodes:
+              create_message_history:
+                type: CreateMessageHistoryStep
+                input_mapping:
+                  query: __inputs__#query
+
+              structured_sub_agent:
+                type: DynamicAgentStep
+                ui_stream_types:
+                  retrievals: true
+                  generation: true
+                config:
+                  tools_config:
+                    - name: get_schema
+                      description: |
+                        Get schema information from MotherDuck database.
+                        This tool returns all available tables and columns from the MotherDuck database.
+                        Use this tool first to understand what data is available before writing SQL queries.
+                      graph_config:
+                        version: 0.1
+                        inputs: {}
+                        outputs:
+                          schemas: Dict
+                        nodes:
+                          call_schema:
+                            type: MCPClientStep
+                            config:
+                              server_url: "https://aiug-hackathon-jinash.fastmcp.app/mcp"
+                              tool_name: show_tables
+                              tool_args: "{}"
+                          __outputs__:
+                            type: output
+                            input_mapping:
+                              schemas: call_schema#mcp_result
+
+                    - name: execute_sql_query
+                      description: |
+                        Execute SQL queries against MotherDuck database.
+                        This tool executes SQL queries directly against the MotherDuck database.
+                        You must provide complete SQL query strings. Examples:
+                        - "SELECT * FROM customer WHERE c_birth_year > 1980 LIMIT 10"
+                        - "SELECT COUNT(*) FROM store_sales WHERE ss_quantity > 5"
+                        - "SELECT c_first_name, c_last_name FROM customer LIMIT 5"
+                      graph_config:
+                        version: 0.1
+                        inputs:
+                          sql_query: str
+                        outputs:
+                          results: Dict
+                        nodes:
+                          execute:
+                            type: MCPClientStep
+                            config:
+                              server_url: "https://aiug-hackathon-jinash.fastmcp.app/mcp"
+                              tool_name: query
+                              tool_args: '{"query": "str"}'
+                            input_mapping:
+                              query: __inputs__#sql_query
+                          
+                          __outputs__:
+                            type: output
+                            input_mapping:
+                              results: execute#mcp_result
+                  agent_config:
+                    agent_loop:
+                      num_turns: 10
+                      model_name_or_path: "vertex_ai/claude-sonnet-4-5@20250929"
+                      response_model_name_or_path: "vertex_ai/claude-sonnet-4-5@20250929"
+                      identity_guidelines_prompt: |
+                        You are a DuckDB SQL expert assistant with access to a retail analytics database.
+
+                        CRITICAL EFFICIENCY RULES:
+                        1. You have a MAXIMUM of 10 turns to answer the question
+                        2. Call get_schema ONCE at the start, then write ONE comprehensive SQL query
+                        3. Do NOT write exploratory queries - plan your query carefully first
+                        4. If your first query returns data, USE IT to answer - do not try variations
+                        5. Answer with available data even if incomplete - do NOT keep searching
+
+                        QUERY RULES:
+                        1. ALWAYS call get_schema FIRST before writing any SQL queries
+                        2. The schema returns JSON with structure: {"schemas": {"duckdb": {"tables": [{"name": "table_name", "columns": [{"name": "col_name", "type": "TYPE"}]}]}}}
+                        3. ONLY use table names and column names that exist in the schema - NEVER guess or invent table names
+                        4. This is DuckDB, NOT SQLite - do NOT use sqlite_master, .tables, or SQLite-specific syntax
+                        5. Use standard SQL: SELECT, FROM, WHERE, JOIN, GROUP BY, ORDER BY, LIMIT
+
+                        Available tables (35 total):
+                        - Sales: store_sales, web_sales, catalog_sales, store_returns
+                        - Customer: customer, customer_address, customer_demographics, household_demographics
+                        - Product: item, inventory, promotion
+                        - Store/Warehouse: store, warehouse
+                        - Date/Time: date_dim
+                        - Events: app_events, clickstream, customer_service, page_performance
+                        - And 20 more analytics tables
+
+                      tool_catalog_prompt: |
+                        Available Tools:
+
+                        1. get_schema()
+                           - Returns complete schema with all 35 table names and columns
+                           - Returns JSON: {"schemas": {"duckdb": {"tables": [...]}}}
+                           - ALWAYS call this FIRST before any execute_sql_query
+                           - Use this to discover exact table/column names
+
+                        2. execute_sql_query(sql_query: str)
+                           - Executes DuckDB SQL query and returns results
+                           - Input: Complete SQL query string
+                           - Output: Query results as JSON
+                           - ONLY use table/column names from get_schema output
+
+                      tool_use_guidelines_prompt: |
+                        ⚠️ CRITICAL: You have ONLY 10 turns total. Plan carefully!
+
+                        MANDATORY EFFICIENT WORKFLOW:
+
+                        Turn 1: GET SCHEMA
+                        → Call get_schema() ONCE
+                        → Parse JSON: schemas.duckdb.tables[].name and columns[]
+                        → Identify ALL relevant tables for the question
+
+                        Turn 2-3: WRITE ONE COMPREHENSIVE QUERY
+                        → Think critically about what the question asks
+                        → Write ONE well-designed query that gets all needed data
+                        → Use JOINs to combine multiple tables if needed
+                        → Add GROUP BY, aggregations, filters in ONE query
+                        → DO NOT write exploratory queries - make it count!
+
+                        Turn 4: RESPOND WITH RESULTS
+                        → If query returns data → USE IT and answer immediately
+                        → DO NOT try variations or refinements
+                        → Answer with available data even if imperfect
+                        → DO NOT keep searching for better results
+
+                        EFFICIENCY RULES:
+                        ✓ Call get_schema ONCE
+                        ✓ Execute 1-2 SQL queries maximum
+                        ✓ Answer with first successful results
+                        ✗ DO NOT write 10+ exploratory queries
+                        ✗ DO NOT refine queries endlessly
+
+                        COMMON PATTERNS (use from schema):
+                        - Sales: store_sales (ss_*), web_sales (ws_*), catalog_sales (cs_*)
+                        - Dates: date_dim (d_year, d_moy, d_date_sk)
+                        - Products: item (i_category, i_item_sk), inventory (inv_*)
+                        - Locations: store (s_store_sk), warehouse (w_warehouse_sk)
+
+                        EXAMPLES OF EFFICIENT QUERIES:
+
+                        Question: "Store #5 revenue in Oct-Nov 2022"
+                        Good ✓: ONE query with JOINs and aggregation
+                        ```sql
+                        SELECT 
+                          d.d_moy as month,
+                          SUM(ss.ss_net_paid) as revenue
+                        FROM store_sales ss
+                        JOIN date_dim d ON ss.ss_sold_date_sk = d.d_date_sk
+                        WHERE ss.ss_store_sk = 5 
+                          AND d.d_year = 2022 
+                          AND d.d_moy IN (10, 11)
+                        GROUP BY d.d_moy
+                        ```
+
+                        Bad ❌: Multiple exploratory queries
+                        - Query 1: Check if store exists
+                        - Query 2: Check date range
+                        - Query 3: Get October data
+                        - Query 4: Get November data
+                        - Query 5-10: Try variations...
+
+                        ANSWER IMMEDIATELY after getting useful data!
+                      response_formatting_prompt: |
+                        Format your responses clearly and helpfully:
+                        - Present data results in a readable format
+                        - Explain what the data means
+                        - Provide context and insights
+                        - If no data is found, suggest alternative approaches
+
+                input_mapping:
+                  query: __inputs__#query
+                  message_history: create_message_history#message_history
+
+              __outputs__:
+                type: output
+                input_mapping:
+                  response: structured_sub_agent#response
+
+      agent_config:
+        agent_loop:
+          num_turns: 15
+          model_name_or_path: "vertex_ai/claude-sonnet-4-5@20250929"
+          response_model_name_or_path: "vertex_ai/claude-sonnet-4-5@20250929"
+          identity_guidelines_prompt: |
+            You are an enterprise data assistant created by Contextual AI. Your purpose is to help users answer questions by intelligently routing queries to specialized sub-agents that handle either structured data (tables, databases, CSV files) or unstructured data (documents, PDFs, text files).
+
+            You have access to two specialized agents:
+            1. structured_data_agent - Handles queries about structured/tabular data (databases, tables, CSV files, spreadsheets)
+            2. unstructured_data_agent - Handles queries about documents, PDFs, and unstructured text content
+
+            ⚠️ CRITICAL EFFICIENCY RULES:
+            1. You have a MAXIMUM of 15 turns to complete the task
+            2. Call each sub-agent ONCE maximum
+            3. If a sub-agent returns a comprehensive answer → USE IT and respond immediately
+            4. DO NOT call the same sub-agent twice
+            5. DO NOT try to "improve" or "refine" answers by calling agents again
+
+            Your job is to analyze each user query, call the appropriate agent(s) ONCE, then synthesize the results into a coherent response.
+          tool_catalog_prompt: |
+            You have access to 2 specialized agents:
+            - structured_data_agent: Specialized agent for querying structured datastores (tables, databases, CSV files, spreadsheets). Use for database queries, table information, SQL-related questions, CSV/spreadsheet analysis, and statistical questions about data.
+            - unstructured_data_agent: Specialized agent for retrieving information from unstructured datastores (documents, PDFs, text files). Use for document search, text retrieval, PDF queries, general knowledge queries, and metadata-based searches.
+
+            You can use one or both agents depending on the query complexity. For complex queries requiring cross-data synthesis, use both agents and combine their results.
+          tool_use_guidelines_prompt: |
+            ⚠️ CRITICAL: You have ONLY 15 turns. Call each agent ONCE maximum!
+
+            # MANDATORY EFFICIENT ROUTING STRATEGY
+
+            ## Step 1: ANALYZE QUERY (Turn 1)
+            - Determine if query needs structured data, unstructured data, or both
+            - Make routing decision immediately
+
+            ## Step 2: CALL APPROPRIATE AGENT(S) (Turn 2-3)
+            - Call structured_data_agent for database/SQL/table questions
+            - Call unstructured_data_agent for document/PDF/text questions
+            - Call BOTH agents (in parallel if possible) for cross-data queries
+            - ⚠️ Call each agent ONCE only - do NOT retry!
+
+            ## Step 3: RESPOND IMMEDIATELY (Turn 4)
+            - If agent returned comprehensive answer → Present it and STOP
+            - DO NOT call the same agent again to "improve" or "refine"
+            - DO NOT try additional queries if you got useful data
+            - Synthesize and answer with what you have
+
+            ## ROUTING RULES:
+
+            ### USE structured_data_agent FOR:
+            - Database queries, SQL questions, table analysis
+            - Revenue, sales, inventory, transaction data
+            - Statistical analysis ("count", "sum", "average")
+            - Questions mentioning stores, warehouses, dates, categories
+
+            ### USE unstructured_data_agent FOR:
+            - Document search, PDF content, text retrieval
+            - Policy questions, documentation, reports
+            - Metadata-based searches (section references, tags)
+
+            ### USE BOTH AGENTS FOR (call in parallel):
+            - Questions requiring both database stats AND document context
+            - Cross-referencing structured data with unstructured reports
+
+            ## CRITICAL STOP CONDITIONS:
+            ✓ If structured_data_agent returns detailed analysis → ANSWER and STOP
+            ✓ If unstructured_data_agent returns relevant docs → ANSWER and STOP
+            ✓ If both agents returned data → SYNTHESIZE and STOP
+            ✗ DO NOT call structured_data_agent twice
+            ✗ DO NOT call unstructured_data_agent twice
+            ✗ DO NOT try to "verify" or "double-check" results
+          response_formatting_prompt: |
+            ⚠️ CRITICAL: Answer IMMEDIATELY after sub-agents respond!
+
+            ## Response Rules:
+            1. If sub-agent returned comprehensive answer → Present it directly and STOP
+            2. DO NOT call the same sub-agent again to improve/refine/verify
+            3. DO NOT say "let me get more details" or "let me verify"
+            4. Work with the data you received - it's sufficient!
+
+            ## For Single-Agent Responses:
+            - Present the sub-agent's response directly (it's already comprehensive)
+            - Add brief context only if absolutely necessary
+            - STOP after presenting - do not call any agent again
+
+            ## For Multi-Agent Responses:
+            - Synthesize both responses into one coherent answer
+            - Indicate which info came from which source
+            - STOP after synthesis - do not call agents again
+
+            ## Formatting:
+            - Use markdown (headings, lists, tables)
+            - Be concise but thorough
+            - If data is missing, state it briefly and move on
+
+            ## DO NOT:
+            ✗ Call structured_data_agent twice (even if first response seems incomplete)
+            ✗ Call unstructured_data_agent twice
+            ✗ Try to "verify" or "enhance" responses by re-querying
+            ✗ Say "let me check one more thing"
+
+            ## DO:
+            ✓ Trust the sub-agent's response
+            ✓ Present it and finish immediately
+            ✓ Answer confidently with available data
+
+    input_mapping:
+      message_history: create_message_history#message_history
+
+  __outputs__:
+    type: output
+    input_mapping:
+      response: generation#response

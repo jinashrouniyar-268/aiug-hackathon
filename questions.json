@@ -1,0 +1,556 @@
+[
+  {
+    "question_number": 1,
+    "question": "Store #5's November 2022 revenue dropped from $500K in October to $300K. Investigate which warehouse experienced an inventory shortage that affected Store #5, and identify which product category was most impacted by this shortage. What was the revenue impact in dollars for this specific warehouse-category combination?",
+    "expected_schema": {
+      "warehouse_sk": "int",
+      "category": "string",
+      "revenue_impact": "float"
+    }
+  },
+  {
+    "question_number": 2,
+    "question": "January 2023 saw a spike in item returns in one state. What percentage of December revenue in the biggest returns category should be discounted due to those returns?",
+    "expected_schema": {
+      "state": "string",
+      "category": "string",
+      "return_count": "int",
+      "return_value": "float"
+    }
+  },
+  {
+    "question_number": 3,
+    "question": "Sales for an item spiked for a few weeks, but revenue is down. Figure out which item, what the error was, and calculate the lost revenue.",
+    "expected_schema": {
+      "item_sk": "int",
+      "lost_revenue": "float"
+    }
+  },
+  {
+    "question_number": 4,
+    "question": "Which product had the highest sales in 2019? Give the name and total quantity.",
+    "expected_schema": {
+      "item_sk": "int",
+      "total_quantity": "int"
+    }
+  },
+  {
+    "question_number": 5,
+    "question": "How much did our net profit increase from 2021 to 2022?",
+    "expected_schema": {
+      "profit_increase": "float"
+    }
+  },
+  {
+    "question_number": 6,
+    "question": "What was our most popular category in 2023 (by total quantity of items sold)?",
+    "expected_schema": {
+      "category": "string"
+    }
+  },
+  {
+    "question_number": 7,
+    "question": "In which year did we have the lowest net profit from sales?",
+    "expected_schema": {
+      "year": "int"
+    }
+  },
+  {
+    "question_number": 8,
+    "question": "In 2022, which store had the highest net profit in sales? Give the name of the store.",
+    "expected_schema": {
+      "store_name": "string"
+    }
+  },
+  {
+    "question_number": 9,
+    "question": "In 2022, which city had the highest number of items sold? How many items?",
+    "expected_schema": {
+      "city": "string",
+      "items_sold": "int"
+    }
+  },
+  {
+    "question_number": 10,
+    "question": "What is the name of our best-selling product during the 2022 holiday season?",
+    "expected_schema": {
+      "item_sk": "int"
+    }
+  },
+  {
+    "question_number": 11,
+    "question": "What was our most successful quarter by far (by total net profit)?",
+    "expected_schema": {
+      "successful_quarter": "string"
+    }
+  },
+  {
+    "question_number": 12,
+    "question": "What is the smallest channel in terms of percent of Revenue?",
+    "expected_schema": {
+      "smallest_channel": "string",
+      "store_revenue_percent": "float",
+      "web_revenue_percent": "float",
+      "catalog_revenue_percent": "float"
+    }
+  },
+  {
+    "question_number": 13,
+    "question": "What is the top selling item of 2023? Give me the product name",
+    "expected_schema": {
+      "item_sk": "int"
+    }
+  },
+  {
+    "question_number": 14,
+    "question": "What is the highest single transaction for a store ever in terms of net profit?",
+    "expected_schema": {
+      "highest_net_profit": "float",
+      "ticket_number": "int",
+      "store_sk": "int"
+    }
+  },
+  {
+    "question_number": 15,
+    "question": "For that same transaction with the highest net profit, what was the total revenue (not including taxes)?",
+    "expected_schema": {
+      "total_revenue": "float",
+      "net_profit": "float"
+    }
+  },
+  {
+    "question_number": 16,
+    "question": "How many unique stores are there?",
+    "expected_schema": {
+      "unique_stores": "int"
+    }
+  },
+  {
+    "question_number": 17,
+    "question": "What stores has highest total net profit over its lifetime?",
+    "expected_schema": {
+      "store_sk": "int"
+    }
+  },
+  {
+    "question_number": 18,
+    "question": "What store has the lowest net profit over its lifetime?",
+    "expected_schema": {
+      "store_sk": "int"
+    }
+  },
+  {
+    "question_number": 19,
+    "question": "From which state do we have the most customers?",
+    "expected_schema": {
+      "state": "string",
+      "customer_count": "int"
+    }
+  },
+  {
+    "question_number": 20,
+    "question": "Our compliance audit found high-value purchase orders missing required approver signatures, creating financial liability. Purchase orders over $10,000 require both buyer and approver signatures per our procurement policy. What is the total value of unsigned purchase orders exceeding the $10,000 threshold, which approver has the highest total dollar value of unsigned orders, and what is that value?",
+    "expected_schema": {
+      "total_unsigned_value": "float",
+      "highest_value_approver": "string",
+      "highest_value_approver_total": "float"
+    }
+  },
+  {
+    "question_number": 21,
+    "question": "Our warehouse operations team at Warehouse 2 has noticed an increase in damaged inventory during 2020. We suspect certain door docks may be causing more damage than others. Identify which door dock has the highest damage rate and quantify how much worse it is compared to the facility average.",
+    "expected_schema": {
+      "highest_damage_dock": "string",
+      "highest_damage_rate_pct": "float",
+      "avg_damage_rate_pct": "float",
+      "rate_multiplier": "float"
+    }
+  },
+  {
+    "question_number": 22,
+    "question": "Our largest customer in 2022 should sign up for a recurring order program. Which customer, which item, and how many months did they order that item?",
+    "expected_schema": {
+      "customer_sk": "int",
+      "item_sk": "int",
+      "num_months": "int"
+    }
+  },
+  {
+    "question_number": 23,
+    "question": "We ran a signup promotion #102 in Q1 2020 for $20 off their first order. Calculate its ROI based on 12-mo value assuming all signups are incremental.",
+    "expected_schema": {
+      "cohort_size": "int",
+      "cohort_ltv": "float",
+      "roi_pct": "float",
+      "net_profit": "float"
+    }
+  },
+  {
+    "question_number": 24,
+    "question": "We have fishy transactions in December 2022. Based on our fraud policy, how much total sales seem suspiciously close to our fraud spending limit?",
+    "expected_schema": {
+      "customer_sk": "int",
+      "transaction_count": "int",
+      "total_value": "float"
+    }
+  },
+  {
+    "question_number": 25,
+    "question": "Identify the bottom decile of items (worst 10% by return rate). Calculate the net revenue impact from carrying these high-return items, accounting for sales revenue, customer refunds, and restocking costs. What is the total net revenue impact?",
+    "expected_schema": {
+      "bottom_decile_item_count": "int",
+      "total_restocking_costs": "float",
+      "net_revenue_impact": "float"
+    }
+  },
+  {
+    "question_number": 26,
+    "question": "Identify the item with the strongest seasonal sales pattern, where 3 consecutive calendar months account for the highest percentage of its annual sales. Report the item SK and the percentage of annual sales that these 3 peak months represent (rounded to nearest whole percent).",
+    "expected_schema": {
+      "item_sk": "int",
+      "peak_months": "list[int]",
+      "percentage": "int"
+    }
+  },
+  {
+    "question_number": 27,
+    "question": "One item was sold at exactly 4 different discount levels in 2022 (0%, 10%, 15%, 20%). Find this item and calculate: (1) the discount percentage where quantity sold first exceeds 2x the baseline, and (2) the discount level that maximizes revenue. Submit item SK, both discount percentages, and max revenue.",
+    "expected_schema": {
+      "item_sk": "int",
+      "doubling_discount": "int",
+      "max_revenue_discount": "int",
+      "max_revenue": "float"
+    }
+  },
+  {
+    "question_number": 28,
+    "question": "Store #15 has highest revenue but lowest profit margin. Is our promotion strategy causing an issue? Quantify the impact.",
+    "expected_schema": {
+      "store_sk": "int",
+      "profit_margin_percent": "float",
+      "promotional_sales_percent": "float",
+      "lost_profit": "float"
+    }
+  },
+  {
+    "question_number": 29,
+    "question": "Long-tenure customers (active 24+ months) show monthly repeat purchase behavior concentrated in one brand. Calculate which brand and what percentage of long-tenure customers purchase from this brand each month on average.",
+    "expected_schema": {
+      "long_tenure_customer_count": "int",
+      "loyalty_brand": "null",
+      "monthly_repurchase_rate_percent": "float"
+    }
+  },
+  {
+    "question_number": 30,
+    "question": "November 2022 month-over-month growth was below trend. Which store had the largest negative deviation from its 3-month linear trend? What percentage of the total shortfall in trend was this responsible for?",
+    "expected_schema": {
+      "worst_store_sk": "int",
+      "deviation_percentage_points": "float",
+      "contribution_percent": "float"
+    }
+  },
+  {
+    "question_number": 31,
+    "question": "Find the product pair with highest co-purchase rate, what are the items (pair in ascending order) and how many times have they been bought together. Our competitor prices almost everything 5% cheaper than us, what could we make the bundle price to come just under the competitors combined price for these items (let's undercut them by 1%)?",
+    "expected_schema": {
+      "item_1_sk": "int",
+      "item_2_sk": "int",
+      "competitor_combined_price": "float",
+      "bundle_price": "float"
+    }
+  },
+  {
+    "question_number": 32,
+    "question": "November 2022 shows record pageviews but flat revenue. We think it's bots. What percentage of web traffic in November is likely due to bots?",
+    "expected_schema": {
+      "total_pageviews": "int",
+      "bot_ip_prefix": "string",
+      "bot_pageviews": "int",
+      "bot_percentage": "float"
+    }
+  },
+  {
+    "question_number": 33,
+    "question": "Our CS team is getting a lot of tickets related to out-of-stock in January 2022. Can you determine if any specific warehouse is taking a long time to receive restocks? What percentage of the out-of-stock CS tickets are related to that warehouse?",
+    "expected_schema": {
+      "slowest_warehouse_sk": "int",
+      "avg_days_to_receive_shipment": "float",
+      "cs_ticket_percentage": "float"
+    }
+  },
+  {
+    "question_number": 34,
+    "question": "What percent of orders missed our delivery time-frame promise, and which product category performed worst?",
+    "expected_schema": {
+      "promise_days": "int",
+      "on_time_rate_percent": "float",
+      "missed_rate_percent": "float",
+      "worst_category": "string",
+      "worst_category_on_time_rate_percent": "float"
+    }
+  },
+  {
+    "question_number": 35,
+    "question": "Finance says our supplier owes us a Q4 2022 rebate for missing their speedy delivery guarantee. How much rebate are we owed?",
+    "expected_schema": {
+      "q4_2022_on_time_rate_percent": "float",
+      "sla_threshold_percent": "float",
+      "rebate_owed": "float"
+    }
+  },
+  {
+    "question_number": 36,
+    "question": "Since July 1, 2018, what percentage of customer data deletion requests were completed within the legal requirement of 30 days, and how many are overdue?",
+    "expected_schema": {
+      "total_requests": "int",
+      "overdue_requests": "int",
+      "overdue_rate_percent": "float"
+    }
+  },
+  {
+    "question_number": 37,
+    "question": "Our quality team noticed a spike in product defect reports in late 2020. We're investigating whether this warrants a product recall. What percentage of defect reports in Q4 2020 were classified as 'critical' or 'high' severity, and which product category had the highest concentration of these severe defects?",
+    "expected_schema": {
+      "q4_2020_defect_reports": "int",
+      "critical_high_severity_percent": "float",
+      "worst_category": "string",
+      "worst_category_severe_percentage": "float"
+    }
+  },
+  {
+    "question_number": 38,
+    "question": "We have a customer gap in the 25-30 age range (assume today is 2023-12-31). Based on the linear relationship between age and average customer value across other age groups, calculate the ACV for this cohort and the revenue opportunity from doubling its size. Submit ACV and revenue opportunity.",
+    "expected_schema": {
+      "age_25_30_customer_count": "int",
+      "average_other_buckets": "float",
+      "acv_25_30": "float",
+      "revenue_opportunity": "float"
+    }
+  },
+  {
+    "question_number": 39,
+    "question": "Customer SK 33,333 switched from 100% in-store to 100% online in March 2021. Investigate what event triggered this channel migration, paying particular attention to any returns and their associated return reasons during this period.",
+    "expected_schema": {
+      "returns_in_march_2021": "int",
+      "return_store_sk": "int",
+      "return_reason": "string"
+    }
+  },
+  {
+    "question_number": 40,
+    "question": "How much net profit did we make from NY state in 2023?",
+    "expected_schema": {
+      "net_profit": "float"
+    }
+  },
+  {
+    "question_number": 41,
+    "question": "What two months have the highest revenue generally?",
+    "expected_schema": {
+      "highest_revenue_months": "list[string]"
+    }
+  },
+  {
+    "question_number": 42,
+    "question": "What month/year did we hit maximum sales?",
+    "expected_schema": {
+      "month": "int",
+      "year": "int"
+    }
+  },
+  {
+    "question_number": 43,
+    "question": "Which state currently has the highest cumulative net profit dollar amount?",
+    "expected_schema": {
+      "state": "string",
+      "cumulative_profit": "float"
+    }
+  },
+  {
+    "question_number": 44,
+    "question": "Which state has the highest net profit per customer?",
+    "expected_schema": {
+      "state": "string",
+      "profit_per_customer": "float"
+    }
+  },
+  {
+    "question_number": 45,
+    "question": "Our warehouse wants to optimize receiving operations by identifying suppliers that pack most efficiently. Which supplier has the highest average monetary value per pallet received? What is their average value per pallet?",
+    "expected_schema": {
+      "top_supplier": "string",
+      "avg_value_per_pallet": "float"
+    }
+  },
+  {
+    "question_number": 46,
+    "question": "Item SK 54,321 sells at different discount levels. At which discount level does quantity sold first exceed 10x the baseline, and what's the total revenue at that level?",
+    "expected_schema": {
+      "discount_pct": "int",
+      "quantity": "int",
+      "revenue": "float"
+    }
+  },
+  {
+    "question_number": 47,
+    "question": "Store #7 experienced cannibalization from a new store opening in H2 2021. For the category that saw the largest revenue impact calculate the net delta with the new store. Submit the category name and net dollar amount.",
+    "expected_schema": {
+      "cannibalizing_store_sk": "int",
+      "cannibalized_store_sk": "int",
+      "category": "string",
+      "net_delta": "float"
+    }
+  },
+  {
+    "question_number": 48,
+    "question": "Segment customers by income tier (Low: <$50K, Medium: $50-100K, High: $100K+) and age group (Young: born <1970, Old: ≥1970). For the top 3 segments by total revenue, identify the 3 most exemplar customers in each segment (closest to segment median CLV). What is the most commonly purchased item across those 9 exemplar customers? Submit item SK and purchase count.",
+    "expected_schema": {
+      "item_sk": "int",
+      "purchase_count": "int"
+    }
+  },
+  {
+    "question_number": 49,
+    "question": "It seems like Q4 customer cohorts retain worse at 90 days. If those customers retained at the same average rate as those acquired in other quarters, what would the additional revenue have been? Submit total cohort LTV and lost 90-day revenue.",
+    "expected_schema": {
+      "q4_cohort_size": "int",
+      "q4_retention_rate": "float",
+      "lost_90_day_revenue": "float"
+    }
+  },
+  {
+    "question_number": 50,
+    "question": "A free shipping promotion in July 2022 (orders >$50) ran for one month on a test group. Calculate average order value for test vs control, and incremental revenue per customer. Submit the promotion number, how many users benefit from it, and the incremental revenue per customer.",
+    "expected_schema": {
+      "promotion_sk": "int",
+      "test_aov": "float",
+      "control_aov": "float",
+      "incremental_aov": "float",
+      "incremental_revenue_per_customer": "float"
+    }
+  },
+  {
+    "question_number": 51,
+    "question": "Did anyone exceed the Black Friday electronics per-customer discount cap? How many customers and how much did we over-discount?",
+    "expected_schema": {
+      "promo_code": "string",
+      "discount_cap": "float",
+      "customers_exceeding_cap": "int",
+      "total_over_discount": "float"
+    }
+  },
+  {
+    "question_number": 52,
+    "question": "Our warehouse operations team noticed that some pickers consistently miss their pick deadlines, causing downstream delays. Analyze picking slips and shipping manifests to identify which picker has the highest percentage of orders completed after their deadline, and calculate the average delay time for that picker.",
+    "expected_schema": {
+      "worst_picker_id": "string",
+      "late_percentage": "float",
+      "avg_delay_minutes": "float"
+    }
+  },
+  {
+    "question_number": 53,
+    "question": "Customers who make a 2nd purchase within 30 days show higher 12-month LTV than those who don't. Calculate the incremental LTV lift from making a 2nd purchase (vs 1 purchase). Submit the incremental value.",
+    "expected_schema": {
+      "customers_with_1_purchase": "int",
+      "customers_with_2_purchases": "int",
+      "incremental_ltv_lift": "float"
+    }
+  },
+  {
+    "question_number": 54,
+    "question": "Black Friday week of 2020 was soft on revenue. Our Product managers have been hearing from customers that they're frustrated with payment issues during the checkout process. What's the increase in abandonment rate this year vs last year during Black Friday, and what's the most common error code during that time period?",
+    "expected_schema": {
+      "abandonment_rate_2019": "float",
+      "abandonment_rate_2020": "float",
+      "most_common_error_code": "string"
+    }
+  },
+  {
+    "question_number": 55,
+    "question": "The CRM team is considering starting an abandoned-cart campaign. Quantify the opportunity: identify add_to_cart events with no purchase by the same customer within 24 hours. What would be the ROI if we could recover 10% of the abandoned carts from Dec 2022?",
+    "expected_schema": {
+      "total_add_to_cart_events": "int",
+      "abandoned_cart_count": "int",
+      "potential_recovery": "float"
+    }
+  },
+  {
+    "question_number": 56,
+    "question": "Our search funnel (Landing → Search → Item → Cart → Checkout) needs optimization. We notice mobile converts far worse, can you find the specific browser and funnel-stage combination where the dropoff is significantly worse than average for that funnel-stage. What's the percentage dropoff for that funnel-stage and browser combination?",
+    "expected_schema": {
+      "browser": "string",
+      "worst_stage": "string",
+      "conversion_percent": "float",
+      "percentage_points_worse": "float"
+    }
+  },
+  {
+    "question_number": 57,
+    "question": "We ran experiment 'checkout_v2' in December 2021. Our PM wants to understand the results by customer segment (high-value: customer_sk % 5 == 0, low-value: customer_sk % 5 != 0). Calculate the overall conversion rate for control and treatment, then calculate conversion rates for each customer segment. Return the conversion rate lift (in percentage points) for high-value customers only.",
+    "expected_schema": {
+      "overall_control_rate": "float",
+      "overall_treatment_rate": "float",
+      "high_value_segment_lift_ppts": "float"
+    }
+  },
+  {
+    "question_number": 58,
+    "question": "We ran experiment 'pricing_v2' in November 2021, configured for a 50/50 split. Calculate the actual traffic split percentage for each variant. It seems like there's a Sample Ratio Mismatch due to device type. How much of the control group is due to not allocating on mobile.",
+    "expected_schema": {
+      "actual_split_control_percent": "float",
+      "actual_split_treatment_percent": "float",
+      "control_excess_due_to_mobile_percent": "float"
+    }
+  },
+  {
+    "question_number": 59,
+    "question": "We ran experiment 'product_page_v3' for 4 weeks in December 2023 which started out great, but we think it has a novelty effect? Calculate the conversion rate lift (in percentage points) for each week, then calculate the rate of change of the weekly effect sizes.",
+    "expected_schema": {
+      "week_1_lift_ppts": "float",
+      "week_2_lift_ppts": "float",
+      "week_3_lift_ppts": "float",
+      "week_4_lift_ppts": "float",
+      "average_weekly_decline_ppts": "float"
+    }
+  },
+  {
+    "question_number": 60,
+    "question": "We're running two experiments simultaneously in December 2021: 'free_shipping_test' and 'checkout_v2'. We're concerned about interaction effects. How much worse is the lift for those in both?",
+    "expected_schema": {
+      "isolated_lift_ppts": "float",
+      "combined_lift_ppts": "float",
+      "lift_degradation_ppts": "float"
+    }
+  },
+  {
+    "question_number": 61,
+    "question": "We ran an abandoned-cart email campaign in December 2022. What's the ROI of the campaign?",
+    "expected_schema": {
+      "emails_sent": "int",
+      "click_rate_percent": "float",
+      "conversion_rate_percent": "float",
+      "total_revenue": "float",
+      "roi_percent": "float"
+    }
+  },
+  {
+    "question_number": 62,
+    "question": "We've detected suspicious purchasing patterns in December 2022. What IP address, shipping address, and item category are most associated with this coordinated fraud ring?",
+    "expected_schema": {
+      "suspicious_ip": "string",
+      "suspicious_customer_count": "int",
+      "suspicious_order_count": "int",
+      "most_common_shipping_address_sk": "int",
+      "most_common_category": "string"
+    }
+  },
+  {
+    "question_number": 63,
+    "question": "During a warehouse audit, you notice some picking slips have both picker and verifier signatures while others have only the picker's signature. The warehouse manager claims there's a consistent policy but it's never been documented. At what number of items does an order require a verifier signature?",
+    "expected_schema": {
+      "threshold_items": "int"
+    }
+  }
+]
