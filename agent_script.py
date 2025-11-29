@@ -388,7 +388,7 @@ def main():
     
     # Get question numbers from user
     print("=" * 70)
-    print("ACL AGENT QUESTION PROCESSOR")
+    print("ACL AGENT")
     print("=" * 70)
     print(f"Agent ID: {AGENT_ID}")
     print(f"Questions file: {QUESTIONS_FILE} (JSON format)")
