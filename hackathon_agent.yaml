@@ -249,7 +249,7 @@ nodes:
                               results: execute#mcp_result
                   agent_config:
                     agent_loop:
-                      num_turns: 30
+                      num_turns: 20
                       model_name_or_path: "vertex_ai/claude-sonnet-4-5@20250929"
                       response_model_name_or_path: "vertex_ai/claude-sonnet-4-5@20250929"
                       identity_guidelines_prompt: |
@@ -431,27 +431,30 @@ nodes:
             **Step 1: Structured Data Query**
             - Call `structured_data_agent` first to get the primary numeric answer.
             - This gives you metrics, counts, aggregations, identifiers (warehouse_sk, item_sk, etc.).
+            - **IMPORTANT**: If the structured query requires document references (e.g., thresholds, policy values, business rules, category definitions) to complete calculations, STOP and call `unstructured_data_agent` first to retrieve those values.
 
             **Step 2: Unstructured Data Validation**
             - Call `unstructured_data_agent` to find supporting context:
               - Policy documents that define thresholds (e.g., fraud limits, approval amounts, SLA terms).
               - Business rules that explain anomalies (e.g., why returns spiked, what caused shortages).
               - Historical context or memos about specific events.
+              - **Any values or constants needed for structured data calculations.**
 
             **Step 3: Cross-Check and Confirm**
             - Compare the structured data results with document findings.
             - If documents mention specific values (thresholds, percentages), verify they match the data.
-            - If there's a discrepancy, investigate further with additional queries.
+            - If there's a discrepancy, perform at most ONE clarifying query.
 
             ### When to Use Each Agent
 
             - `structured_data_agent`: ALL questions involving numbers, counts, aggregations, SQL queries, database tables.
-            - `unstructured_data_agent`: Questions mentioning policies, thresholds, rules, SLAs, compliance, fraud limits, approval requirements.
+            - `unstructured_data_agent`: Questions mentioning policies, thresholds, rules, SLAs, compliance, fraud limits, approval requirements. **ALSO use when structured queries need document-defined values for calculations.**
             - **BOTH agents**: Most complex questions benefit from cross-validation.
 
-            ### Turn Usage
-            - You may call each sub-agent multiple times if needed.
-            - Refine queries based on initial results to improve accuracy.
+            ### CRITICAL: Stopping Rule
+            - **Stop searching immediately once you have sufficient evidence to confidently answer the question.**
+            - Do NOT run endless verification queries. 1-2 verification queries maximum.
+            - If you have a clear numeric answer from structured data AND supporting context from documents, STOP and provide the final answer.
 
             ### Final Answer
             - Synthesize findings from BOTH agents into a single, precise answer.
