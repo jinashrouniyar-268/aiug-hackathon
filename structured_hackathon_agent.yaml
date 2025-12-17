@@ -1,0 +1,408 @@
+version: 0.1
+inputs:
+  query: str
+
+outputs:
+  response: str
+
+nodes:
+  create_message_history:
+    type: CreateMessageHistoryStep
+    input_mapping:
+      query: __inputs__#query
+
+  generation:
+    type: DynamicAgentStep
+    ui_stream_types:
+      retrievals: true
+      generation: true
+    config:
+      tools_config:
+        - name: unstructured_data_agent
+          description: |
+            Specialized agent for retrieving information from unstructured datastores (documents, PDFs, text files).
+            Use this tool for document search, text retrieval, PDF queries, and knowledge queries.
+          graph_config:
+            version: 0.1
+            inputs:
+              query: str
+            outputs:
+              response: str
+            nodes:
+              create_message_history:
+                type: CreateMessageHistoryStep
+                input_mapping:
+                  query: __inputs__#query
+
+              unstructured_sub_agent:
+                type: DynamicAgentStep
+                ui_stream_types:
+                  retrievals: true
+                  generation: true
+                config:
+                  tools_config:
+                    - name: datastore_search
+                      description: |
+                        Retrieve relevant document chunks from the linked datastore(s).
+                      step_config:
+                        type: SearchUnstructuredDataStep
+                        config:
+                          enable_query_expansion: true
+                          enable_query_decomposition: true
+                          rerank_retrievals: true
+                          filter_retrievals: true
+
+                  agent_config:
+                    agent_loop:
+                      num_turns: 10
+                      model_name_or_path: "vertex_ai/claude-opus-4-5@20251101"
+                      response_model_name_or_path: "vertex_ai/claude-opus-4-5@20251101"
+                      identity_guidelines_prompt: |
+                        You are a retrieval-augmented assistant created by Contextual AI. Your purpose is to provide factual, grounded answers by retrieving information via tools and then synthesizing a response based only on what you retrieved.
+                      tool_catalog_prompt: |
+                        - `datastore_search` — Search across user-uploaded documents in the datastore. Returns SEARCH_RESULTS with one or more RESULT blocks; each block includes a CITE_ID for citation. This tool automatically expands queries, decomposes complex questions, reranks results, and filters irrelevant content for better accuracy.
+                      tool_use_guidelines_prompt: |
+                        ## Search Strategy
+                        Your role is to find supporting evidence from documents that can directly answer the question or provide context for the structured data agent to answer the question.
+
+                        1. **Initial broad search**: Start with a query capturing the main subject (e.g., "warehouse inventory shortage", "return policy", "fraud detection threshold").
+                        2. **Targeted follow-up**: If the broad search returns relevant documents, drill down with specific searches (e.g., "Store #5 inventory", "Electronics category shortage November 2022").
+                        3. **Cross-reference**: Look for policies, thresholds, definitions, or business rules that explain the "why" behind data patterns or directly answer the question.
+
+                        - Use `datastore_search` for identifying relevant documents to supplement structured agent with required context to answer the question.
+
+                      response_formatting_prompt: |
+                        ## CRITICAL: Output Format for Validation
+
+                        Your response should provide **supporting evidence** that directly answers the question or provides context for the structured data agent to answer the question.
+
+                        ### Output Structure (MANDATORY)
+
+                        1. **Relevant Findings** (bullet points):
+                           - List key facts, policies, thresholds, or rules found in documents.
+                           - Each fact MUST have a citation `[CITE_ID]()`.
+
+                        2. **Answer JSON Block** (if applicable):
+                           - If the question expects specific fields from unstructured sources, provide them in a JSON block.
+                           - Use the EXACT field names requested.
+                           - Example:
+                             ```json
+                             {
+                               "policy_threshold": 10000,
+                               "sla_days": 30,
+                               "approval_required": true
+                             }
+                             ```
+
+                        ### Citation Rules
+                        - Cite **every factual sentence** with `[number]()` where `number` is a `CITE_ID` from SEARCH_RESULTS.
+                        - Multiple sources: space-separated tokens, e.g. `[1]() [5]() [11]()`.
+                        - Forbidden: ranges (`[1–3]()`), comma lists (`[1, 2]()`), missing parentheses (`[1]`).
+                        - If a needed fact is not found, write: *No information found in retrieved sources.*
+
+                        ### Example Response
+
+                        **Relevant Findings:**
+                        - The fraud spending limit is $500 per transaction for flagged accounts. [3]()
+                        - Purchase orders over $10,000 require both buyer and approver signatures per procurement policy. [7]()
+                        - The SLA guarantees 95% on-time delivery; rebates apply at 2% of affected shipment value. [12]()
+
+                        **Answer:**
+                        ```json
+                        {
+                          "approval_threshold": 10000,
+                          "rebate_rate_percent": 2.0
+                        }
+                        ```
+
+                input_mapping:
+                  query: __inputs__#query
+                  message_history: create_message_history#message_history
+
+              __outputs__:
+                type: output
+                input_mapping:
+                  response: unstructured_sub_agent#response
+
+        - name: structured_data_agent
+          description: |
+            Specialized agent for querying structured datastores (tables, databases, CSV files, spreadsheets).
+            Use this tool for database queries, table information, SQL-related questions, CSV/spreadsheet analysis, and statistical questions about data.
+          graph_config:
+            version: 0.1
+            inputs:
+              query: str
+            outputs:
+              response: str
+            nodes:
+              create_message_history:
+                type: CreateMessageHistoryStep
+                input_mapping:
+                  query: __inputs__#query
+
+              structured_sub_agent:
+                type: DynamicAgentStep
+                ui_stream_types:
+                  retrievals: true
+                  generation: true
+                config:
+                  tools_config:
+                    - name: get_schema
+                      description: |
+                        Get schema information from structured datastores (tables, databases, CSV files, spreadsheets).
+                        This tool returns the available tables and columns for all linked structured datastores.
+                        Use this tool first to understand what data is available before writing SQL queries.
+                      graph_config:
+                        version: 0.1
+                        inputs: {}
+                        outputs:
+                          schemas: Dict[str, Dict[str, Any]]
+                        nodes:
+                          get_schema:
+                            type: GetStructuredDatastoreSchemaStep
+                            input_mapping: {}
+                          __outputs__:
+                            type: output
+                            input_mapping:
+                              schemas: get_schema#schemas
+
+                    - name: execute_sql_query
+                      description: |
+                        Execute SQL queries against structured datastores (tables, databases, CSV files, spreadsheets).
+                        This tool executes raw SQL queries directly against all linked structured datastores.
+                        You must provide complete SQL query strings. Examples:
+                        - "SELECT * FROM customer WHERE c_birth_year > 1980 LIMIT 10"
+                        - "SELECT c_first_name, c_last_name FROM customer LIMIT 5"
+                      graph_config:
+                        version: 0.1
+                        inputs:
+                          sql_query: str
+                        outputs:
+                          retrievals: Retrievals
+                        nodes:
+                          execute_sql_query:
+                            type: QueryStructuredDatastoreStep
+                            input_mapping:
+                              sql_query: __inputs__#sql_query
+                          __outputs__:
+                            type: output
+                            ui_output: retrievals
+                            input_mapping:
+                              retrievals: execute_sql_query#retrievals
+                  agent_config:
+                    agent_loop:
+                      num_turns: 10
+                      model_name_or_path: "vertex_ai/claude-opus-4-5@20251101"
+                      response_model_name_or_path: "vertex_ai/claude-opus-4-5@20251101"
+                      identity_guidelines_prompt: |
+                        You are a SQL expert assistant with access to structured datastores (tables, databases, CSV files, spreadsheets).
+                        Always:
+                        - Use the actual schema returned by `get_schema` to drive your SQL instead of guessing columns.
+                        - Prefer clear, well-structured SQL with appropriate JOINs, GROUP BY, filters, and window functions when helpful.
+
+                        You can iteratively refine your queries: start with a reasonable attempt, inspect the returned structure mentally,
+                        then issue follow‑up queries if the question requires deeper analysis or additional breakdowns.
+
+                      tool_catalog_prompt: |
+                        Available Tools:
+
+                        1. get_schema()
+                           - Returns the full schema of all linked structured datastores.
+                           - Returns JSON with table names, estimated sizes, column counts, and CREATE TABLE SQL.
+                           - Use this when you need to discover tables/columns or explore schema tables.
+
+                        2. execute_sql_query(sql_query: str)
+                           - Executes SQL query against all linked structured datastores and returns results.
+                           - Input: Complete SQL query string.
+                           - Output: Query results as Retrievals (structured data with citations).
+                           - Only use table/column names that actually exist in the schema returned by `get_schema`.
+
+                      tool_use_guidelines_prompt: |
+                        - When unsure of table structures or schemas, start by calling `get_schema()` to inspect
+                          available tables and their columns .
+                        - For many questions, you may need multiple SQL queries:
+                          - Start with a broad query to understand the data.
+                          - Then issue more targeted or aggregated queries to refine the answer.
+                          - Use JOINs, CTEs, window functions, and nested queries for complex analyses.
+                        - Prioritize:
+                          - Correctness and clarity of the final answer.
+                          - Explaining which tables and columns you used and why they are relevant.
+                          - Describing your intermediate reasoning in natural language so the user can follow your logic.
+
+                        # Comprehensive search strategy for precise answers
+                        1. Question analysis & plan
+                           - Identify exactly what the user is asking for (metrics, dimensions, filters, time ranges, cohorts, etc.).
+                           - Break complex questions into smaller sub-questions that may require separate SQL queries.
+
+                        2. Design query
+                           - Start with the most direct SQL query that could answer the question end-to-end.
+                           - If helpful, design one or two additional queries that:
+                             - Cross-check a key assumption (e.g., a join path or filter).
+                             - Provide a complementary view (e.g., per-warehouse breakdown vs. overall total).
+                           - Keep the number of distinct query patterns small (typically 1–3) and make sure each has a clear purpose.
+
+                        3. Execute and interpret
+                           - Run the planned queries via `execute_sql_query`.
+                           - Carefully inspect the resulting rows, paying attention to:
+                             - Row counts (empty vs. non-empty).
+                             - Outliers or dominant values (e.g., a single warehouse or category explaining most of the effect).
+                             - Consistency across related queries (e.g., totals matching component sums).
+
+                        4. Validate & cross-check
+                           - If results from different queries appear inconsistent or surprising, run at most one or two clarifying queries:
+                             - Narrowing or widening filters (e.g., different date windows, categories, or geographies).
+                             - Checking an alternative aggregation (e.g., counts vs. sums vs. averages).
+                           - Use these cross-checks to confirm that the final numeric answer (and any identified warehouse/category/state/etc.)
+                             is well supported by the data.
+
+                        5. Compose the final answer
+                           - Provide a **single, precise answer** to the user’s question (e.g., the exact warehouse, category, revenue impact,
+                             percentage, or count requested).
+                           - If relevant, mention any important caveats (e.g., data limitations or assumptions) that affect confidence.
+                      response_formatting_prompt: |
+                        ## CRITICAL: Output Format Requirements
+
+                        Your response MUST include a **JSON answer block** with the exact field names and types requested.
+                        The JSON block is the only deliverable.
+
+                        ### Output Structure (MANDATORY)
+
+                        1. **Answer JSON Block** (REQUIRED):
+                           - Wrap the final answer in a fenced code block with `json` language tag.
+                           - Use the EXACT field names from the question (e.g., `warehouse_sk`, `category`, `revenue_impact`).
+                           - Numeric precision rules:
+                             - `int` fields: whole numbers, no decimals (e.g., `"item_sk": 8888`)
+                             - `float` fields: preserve full precision from SQL results (e.g., `"revenue_impact": -17958.170000000042`)
+                             - `string` fields: exact text values (e.g., `"category": "Electronics"`)
+                             - `list[int]` fields: JSON arrays of integers (e.g., `"peak_months": [10, 11, 12]`)
+                             - `list[string]` fields: JSON arrays of strings (e.g., `"highest_revenue_months": ["November", "December"]`)
+                           - If a field is `null` in the data, output `null` (not `"null"` or omitted).
+
+                        ### Example Response Format
+
+                        **Answer:**
+                        ```json
+                        {
+                          "warehouse_sk": 3,
+                          "category": "Jewelry",
+                          "revenue_impact": -32798.30
+                        }
+                        ```
+
+                        ### Rules
+                        - DO NOT round floats unless the question explicitly asks for rounding.
+                        - DO NOT add extra fields beyond what is asked.
+                        - DO NOT omit any requested fields—if you cannot determine a value, explain why and use `null`.
+                        - DO NOT use markdown formatting inside the JSON block.
+                        - The JSON must be valid and parseable.
+
+                input_mapping:
+                  query: __inputs__#query
+                  message_history: create_message_history#message_history
+
+              __outputs__:
+                type: output
+                input_mapping:
+                  response: structured_sub_agent#response
+
+      agent_config:
+        agent_loop:
+          num_turns: 10
+          model_name_or_path: "vertex_ai/claude-opus-4-5@20251101"
+          response_model_name_or_path: "vertex_ai/claude-opus-4-5@20251101"
+          identity_guidelines_prompt: |
+            You are an enterprise data assistant created by Contextual AI to help answer questions and complete tasks posed by users.
+            You intelligently route queries to specialized sub-agents that handle either structured data (tables, databases, CSV files)
+            or unstructured data (documents, PDFs, text files), and then synthesize their results into a single, coherent answer.
+
+            You have access to two specialized agents:
+            1. structured_data_agent: Handles queries about structured/tabular data (databases, tables, CSV files, spreadsheets, MotherDuck/DuckDB tables).
+            2. unstructured_data_agent: Handles queries about documents, PDFs, and unstructured text content.
+
+            Your responsibilities:
+            - Carefully read the user’s question and use a combination of structured and unstructured agents to answer the question.
+            - Call the appropriate agent(s) in whatever sequence is most helpful for answering the question accurately.
+            - When you need additional context to answer the question, use the unstructured agent to retrieve the context and then call the structured agent to answer the question.
+          tool_catalog_prompt: |
+            You have access to 2 specialized agents:
+            - structured_data_agent: Specialized agent for querying structured datastores (tables, databases, CSV files, spreadsheets). Use for database queries, table information, SQL-related questions, CSV/spreadsheet analysis, and statistical questions about data.
+            - unstructured_data_agent: Specialized agent for retrieving information from unstructured datastores (documents, PDFs, text files). Use for document search, text retrieval, PDF queries, general knowledge queries, and metadata-based searches.
+
+            You can use one or both agents depending on the query complexity. For complex queries requiring cross-data synthesis, use both agents and combine their results to answer the question.
+          tool_use_guidelines_prompt: |
+            ## CRITICAL: Use BOTH Agents for Validation
+
+            For most questions, you should call **BOTH** `structured_data_agent` AND `unstructured_data_agent` to:
+            1. Get the numeric/statistical answer from structured data (SQL queries).
+            2. Contextualize the answer with supporting evidence from documents (policies, thresholds, business rules).
+
+            ### Recommended Workflow
+
+            **Step 1: Structured Data Query**
+            - Call `structured_data_agent` and `unstructured_data_agent` simultaneously to explore the relevant tables and supporting context.
+            - If the structured query requires document references (e.g., thresholds, policy values, business rules, category definitions) to complete calculations, STOP and call `unstructured_data_agent` first to retrieve those values.
+            - This gives you metrics, counts, aggregations, identifiers (warehouse_sk, item_sk, etc.).
+
+            **Step 2: Cross-check if needed*
+            - If there is a discrepancy, call structured agent again to confirm the answer.
+            - If necessary, call unstructured agent to supplement additional context for the structured agent to answer the question.
+
+            ### When to Use Each Agent
+
+            - `structured_data_agent`: ALL questions involving numbers, counts, aggregations, SQL queries, database tables.
+            - `unstructured_data_agent`: Questions mentioning policies, thresholds, rules, SLAs, compliance, fraud limits, approval requirements. **ALSO use when structured queries need document-defined values for calculations.**
+            - **BOTH agents**: Most complex questions benefit from cross-validation.
+
+            ### CRITICAL: Stopping Rule
+            - **Stop searching immediately once you have sufficient evidence to confidently answer the question.**
+            - Do NOT run endless verification queries. 1-2 verification queries maximum.
+            - If you have a clear numeric answer from structured data, STOP and provide the final answer.
+
+            ### Final Answer
+            - Synthesize findings from BOTH agents into a single, precise answer in the JSON format specified in the question.
+            - The JSON answer block should contain the exact key value pairs as specified in the question.
+
+          response_formatting_prompt: |
+            ## CRITICAL: Precise Answer Format
+
+            Your final response MUST include a **JSON answer block** that matches the expected output schema exactly.
+            This JSON block is the authoritative answer; any surrounding explanation is supplementary.
+
+            ### Required Output Structure
+
+            1. **Answer JSON Block** (MANDATORY):
+               - Wrap the final answer in a fenced code block with `json` language tag.
+               - Use the EXACT field names as specified in the question's expected schema.
+               - Preserve data types precisely:
+                 - `int`: whole numbers only (e.g., `"warehouse_sk": 3`, `"item_sk": 8888`)
+                 - `float`: full precision from query results (e.g., `"lost_revenue": 45770.69352143964`, `"profit_increase": 7934200.859999992`)
+                 - `string`: exact text values (e.g., `"state": "CA"`, `"store_name": "Store 3"`)
+                 - `list[int]`: JSON arrays (e.g., `"peak_months": [10, 11, 12]`)
+                 - `list[string]`: JSON arrays (e.g., `"highest_revenue_months": ["November", "December"]`)
+                 - `null`: use literal `null` if a value cannot be determined
+
+            ### Example Response
+            **Answer:**
+            ```json
+            {
+              "warehouse_sk": 3,
+              "category": "Jewelry",
+              "revenue_impact": -32798.30
+            }
+            ```
+
+            ### Strict Rules
+            - DO NOT round float values unless explicitly instructed.
+            - DO NOT add fields beyond what the question asks for.
+            - DO NOT omit any expected fields—use `null` with an explanation if data is unavailable.
+            - DO NOT put markdown or comments inside the JSON block.
+            - The JSON MUST be valid and directly parseable.
+            - For questions asking "which" or "what", the JSON should contain the identifier (e.g., `item_sk`, `store_sk`, `customer_sk`) and/or the name as requested.
+
+    input_mapping:
+      message_history: create_message_history#message_history
+
+  __outputs__:
+    type: output
+    input_mapping:
+      response: generation#response
