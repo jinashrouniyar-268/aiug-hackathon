@@ -44,7 +44,7 @@ nodes:
               top_k: 50
               untrusted_filter_prompt: |-
                 Output only Yes or No.
-                - For general queries about Contextual AI or its offerings STRICTLY REJECT and output "No" for any chunks from blogs that are older than 6 months or chunks that mention:
+                - For general queries about Contextual AI's offerings STRICTLY REJECT and output "No" for any chunks from blogs that are older than 6 months or chunks that mention:
                   - "specialized RAG agents" 
                   - "tuning and alignment tools"
                   - "Slack and Github" as SaaS integrations
